@@ -26,8 +26,14 @@ public:
   /**
    * @brief Begin the main render loop.
    */
-  void StartRendering(std::function<void(const RenderInfo&)>&& imRender) {
-    static_cast<Impl*>(this)->StartRenderingImpl(std::move(imRender));
+  void StartRendering(
+    std::function<void(const RenderInfo&)>&& imRender,
+    std::function<void()>&& onQuit
+  ) {
+    static_cast<Impl*>(this)->StartRenderingImpl(
+      std::move(imRender),
+      std::move(onQuit)
+    );
   }
 
 private:

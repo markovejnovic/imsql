@@ -106,7 +106,10 @@ public:
   Impl(Impl&&) = delete;
   auto operator=(Impl&&) = delete;
 
-  void StartRenderingImpl(std::function<void(const RenderInfo&)>&& imRender) {
+  void StartRenderingImpl(
+    std::function<void(const RenderInfo&)>&& imRender,
+    std::function<void()>&& onQuit
+  ) {
     std::chrono::steady_clock::duration frame_duration;
 
     while (glfwWindowShouldClose(window_) == 0) {
@@ -152,6 +155,8 @@ public:
       const auto end_ts = std::chrono::steady_clock::now();
       frame_duration = end_ts - start_ts;
     }
+
+    onQuit();
   }
 
 private:
@@ -170,9 +175,10 @@ MacOSFrameHandle::MacOSFrameHandle(
 MacOSFrameHandle::~MacOSFrameHandle() = default;
 
 void MacOSFrameHandle::StartRenderingImpl(
-  std::function<void(const RenderInfo&)>&& imRender
+  std::function<void(const RenderInfo&)>&& imRender,
+  std::function<void()>&& onQuit
 ) {
-  impl_->StartRenderingImpl(std::move(imRender));
+  impl_->StartRenderingImpl(std::move(imRender), std::move(onQuit));
 }
 
 // NOLINTNEXTLINE(readability-convert-member-functions-to-static)

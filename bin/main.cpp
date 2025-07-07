@@ -1,18 +1,16 @@
 #include "imgui.h"
+#include "imsqlite/_controller/dbg.hpp"
+#include "imsqlite/db/db.hpp"
+#include "imsqlite/deprecated.hpp"
 #include "imsqlite/os/os.hpp"
-#include "imsqlite/sql/db.hpp"
-#include "imsqlite/ui/node_editor/node.hpp"
-#include "imsqlite/ui/node_editor/node_editor.hpp"
-#include "imsqlite/ui/windbg.hpp"
-#include "lib/include/imsqlite/os/os.hpp"
+#include "imsqlite/ui/sheet_window.hpp"
 #include <cstdio>
 #include <exception>
+#include <filesystem>
 #include <print>
-#include <ranges>
-#include <algorithm>
-#include <thread>
+#include <type_traits>
 #include "imnodes.h"
-#include "imsqlite/ui/window.hpp"
+#include "imsqlite/_model/sheet.hpp"
 
 namespace {
 constexpr std::pair<std::size_t, std::size_t> kDefaultDimensions{800, 600};
@@ -28,7 +26,9 @@ struct AppContext {
 
   ~AppContext() {
     ImNodes::DestroyContext();
-    ImGui::DestroyContext();
+    if (ImGui::GetCurrentContext() != nullptr) {
+      ImGui::DestroyContext();
+    }
   }
 
   AppContext(const AppContext&) = delete;
@@ -45,32 +45,75 @@ auto Main(int /*argc*/, char *const *const /*argv*/) -> int {
   io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
   ImGui::StyleColorsDark();
 
-  auto example_db = sql::Db::FromFile("/Users/marko/Desktop/applier/backend/development_db.db");
 
   os::Provider os_provider;
 
   namespace ui = ui;
   auto frame = os_provider.CreateFrame("Hello!", kDefaultDimensions);
+
+  controller::Dbg dbg_controller;
+
+  model::Spreadsheet initial_spreadsheet = {
+    model::Column{"Number"},
+    model::Column{"Text"},
+  };
+
+  DbController db_controller{
+    std::filesystem::path{
+      "/Users/marko/Desktop/applier/backend/development_db.db"
+    },
+  };
+  db_controller.UpdateState();
+
+  const std::optional<PersistentAppData> persistent_app_data
+    = db_controller.LoadPersistentAppData();
+
+  // TODO(marko): Clean up this junk.
+  // This flag is a pretty bad hack. Ideally StartRendering would give an
+  // "initial paint" callback.
+  std::optional<std::pair<ui::UiState<false>, model::Sheet>> renderState;
+
   frame.StartRendering([&](const os::RenderInfo& render_info) {
-    ImGui::ShowDemoWindow();
-    ui::WinDbg dbg{render_info};
-    {
-      ui::Window window{"Table Connection Diagram"};
-      ui::NodeEditor node_editor;
-
-      int node_ctr = 0;
-      int attr_ctr = 0;
-      auto tables = example_db.Tables();
-      for (const auto& table : tables) {
-        auto node = node_editor.CreateNode(node_ctr++, table.Name().c_str());
-        for (const auto& column : example_db.TableColumns(table.Name())) {
-          // TODO(marko): Add more attributes.
-          node.AddOutput(attr_ctr++, column.Name().c_str());
+    if (!renderState.has_value()) {
+      auto [uiState, sheetState] = ui::SheetWindow(
+        ui::UiState<true>{
+          .DesignerTabState = ui::DesignerTabState<true>{
+            // TODO(marko): Monads would be nice here.
+            .TableNodePositions =
+              persistent_app_data.has_value()
+                ? persistent_app_data->TableNodePositions
+                : std::unordered_map<TableId, ImVec2>{},
+          },
+        },
+        model::Sheet{
+            initial_spreadsheet,
+            {
+              model::SheetRow{
+                {model::SheetCellInteger{42}, model::SheetCellText{"Hello"}}
+              },
+              model::SheetRow{
+                {model::SheetCellReal{3.14}, model::SheetCellText{"World"}}
+              },
+            },
+            db_controller.DbState(),
         }
-      }
-    }
-  });
+      );
 
+      renderState = std::make_pair(uiState, sheetState);
+    }
+
+    dbg_controller.ObserveFrameTime(render_info.FrameTime());
+    dbg_controller.View().Render();
+
+    renderState = ui::SheetWindow(renderState->first, renderState->second);
+
+    ImGui::ShowDemoWindow();
+  }, [&]() {
+    db_controller.SavePersistentAppData(PersistentAppData{
+      .TableNodePositions =
+        renderState->first.DesignerTabState.TableNodePositions,
+    });
+  });
 
   return 0;
 }

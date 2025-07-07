@@ -105,14 +105,6 @@ struct GlfwRuntime {
 } // namespace detail
 
 class MacOSFrameHandle final : public FrameHandle<MacOSFrameHandle> {
-private:
-  // The reason this is pimpled is to avoid poluting our C++ codebase with
-  // Objective C++ junk I have no intention of dealing with. There is a
-  // performance pentalty for this, but I don't care at this moment.
-  // TODO(marko): Consider optimizing away this pimpl.
-  class Impl;
-  std::unique_ptr<Impl> impl_ = nullptr;
-
 public:
   MacOSFrameHandle(const std::string& title,
                    std::pair<std::size_t, std::size_t> dimensions);
@@ -123,7 +115,18 @@ public:
   MacOSFrameHandle(MacOSFrameHandle&&) = default;
   auto operator=(MacOSFrameHandle&&) -> MacOSFrameHandle& = default;
 
-  void StartRenderingImpl(std::function<void(const RenderInfo&)>&& imRender);
+  void StartRenderingImpl(
+    std::function<void(const RenderInfo&)>&& imRender,
+    std::function<void()>&& onQuit
+  );
+
+private:
+  // The reason this is pimpled is to avoid poluting our C++ codebase with
+  // Objective C++ junk I have no intention of dealing with. There is a
+  // performance pentalty for this, but I don't care at this moment.
+  // TODO(marko): Consider optimizing away this pimpl.
+  class Impl;
+  std::unique_ptr<Impl> impl_;
 };
 
 class MacOSProvider final
