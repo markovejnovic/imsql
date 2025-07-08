@@ -4,11 +4,11 @@
 #include "imsqlite/deprecated.hpp"
 #include "imsqlite/os/os.hpp"
 #include "imsqlite/ui/sheet_window.hpp"
+#include "imsqlite/controllers/db.hpp"
 #include <cstdio>
 #include <exception>
 #include <filesystem>
 #include <print>
-#include <type_traits>
 #include "imnodes.h"
 #include "imsqlite/_model/sheet.hpp"
 
@@ -51,19 +51,11 @@ auto Main(int /*argc*/, char *const *const /*argv*/) -> int {
   namespace ui = ui;
   auto frame = os_provider.CreateFrame("Hello!", kDefaultDimensions);
 
-  controller::Dbg dbg_controller;
-
-  model::Spreadsheet initial_spreadsheet = {
-    model::Column{"Number"},
-    model::Column{"Text"},
-  };
-
-  DbController db_controller{
+  controllers::Db db_controller {
     std::filesystem::path{
       "/Users/marko/Desktop/applier/backend/development_db.db"
     },
-  };
-  db_controller.UpdateState();
+  }
 
   const std::optional<PersistentAppData> persistent_app_data
     = db_controller.LoadPersistentAppData();

@@ -10,22 +10,48 @@ set(CMAKE_OBJCXX_STANDARD_REQUIRED ON)
 set(SANITIZER_FLAGS "-fsanitize=address,undefined" "-fno-omit-frame-pointer")
 
 find_package(glfw3 REQUIRED)
-find_package(Boost REQUIRED serialization)
+find_package(Boost REQUIRED serialization iostreams)
 add_subdirectory(third_party)
 
 add_executable(imsql)
-#target_sources(imsql PRIVATE
-#  bin/main.cpp
-#)
+target_include_directories(imsql PRIVATE include)
+target_sources(imsql PRIVATE
+  src/controllers/db.cpp
+  src/main.cpp
+  src/models/base_types.cpp
+  src/models/db.cpp
+  src/os/platform/macos.mm
+  src/ui/input_text.cpp
+  src/ui/nodes/editor.cpp
+  src/ui/nodes/input_attribute.cpp
+  src/ui/nodes/node.cpp
+  src/ui/nodes/output_attribute.cpp
+  src/ui/nodes/static_attribute.cpp
+  src/ui/nodes/title_bar.cpp
+  src/ui/render_ctx.cpp
+  src/ui/tab_bar.cpp
+  src/ui/tab_item.cpp
+  src/ui/text.cpp
+  src/ui/window.cpp
+  src/views/main_window.cpp
+  src/views/spreadsheet_designer.cpp
+)
 target_sources(imsql PRIVATE
   FILE_SET modules TYPE CXX_MODULES FILES
-  src/models/db.cpp
+  #src/models/db.cpp
 )
 target_link_libraries(imsql PRIVATE
+  "-framework Cocoa"
+  "-framework Metal"
+  "-framework MetalKit"
+  "-framework QuartzCore"
+  ${Boost_LIBRARIES}
+  Microsoft.GSL::GSL
+  SQLiteCpp
+  glfw
   imgui
   imnodes
-  SQLiteCpp
-  ${Boost_LIBRARIES}
+  metal_cpp
 )
 
 #
@@ -42,25 +68,12 @@ target_link_libraries(imsql PRIVATE
 #add_library(imsql_lib STATIC
 #    lib/src/os/platform/macos.mm
 #)
-#target_link_libraries(imsql_lib PUBLIC
-#  Microsoft.GSL::GSL imgui glfw
-#)
 #
 #target_include_directories(imsql_lib PUBLIC lib/include)
 #
-#target_compile_options(imsql_lib PRIVATE
-#    -std=c++23
-#    -DIMGUI_IMPL_METAL_CPP
-#    -DIMGUI_DEFINE_MATH_OPERATORS
-#    -ftime-trace
-#)
+target_compile_options(imsql PRIVATE -ftime-trace)
 #
 #target_link_libraries(imsql_lib PUBLIC
-#    glfw
-#    metal_cpp
-#    imgui
-#    imnodes
-#    SQLiteCpp
 #    ${Boost_LIBRARIES}
 #)
 #
