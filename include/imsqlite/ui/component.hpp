@@ -20,23 +20,23 @@ protected:
   // NOLINTNEXTLINE(google-explicit-constructor, hicpp-explicit-conversions)
   constexpr Component(RenderCtx& renderCtx) : renderCtx_(renderCtx) {
     DebugRenderBegin(renderCtx_);
-    renderCtx_.Enter();
   }
 
   constexpr ~Component() {
-    renderCtx_.Exit();
     DebugRenderEnd(renderCtx_);
   }
 
 private:
   void DebugRenderBegin(const RenderCtx& renderCtx) const {
-    renderCtx.DbgStream() << std::string(" ", renderCtx.RenderDepth() * 2);
+    renderCtx.DbgStream() << std::string(renderCtx.RenderDepth() * 2, ' ');
     renderCtx.DbgStream() << "<" << label.String() << ">";
     renderCtx.DbgStream() << "\n";
+    renderCtx_.Enter();
   }
 
   void DebugRenderEnd(const RenderCtx& renderCtx) const {
-    renderCtx.DbgStream() << std::string(" ", renderCtx.RenderDepth() * 2);
+    renderCtx_.Exit();
+    renderCtx.DbgStream() << std::string(renderCtx.RenderDepth() * 2, ' ');
     renderCtx.DbgStream() << "</" << label.String() << ">";
     renderCtx.DbgStream() << "\n";
   }

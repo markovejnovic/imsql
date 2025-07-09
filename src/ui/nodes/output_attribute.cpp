@@ -4,12 +4,12 @@
 
 namespace imsql::ui::nodes {
 
-constexpr OutputAttribute::OutputAttribute(RenderCtx& renderCtx, int attributeId)
+OutputAttribute::OutputAttribute(RenderCtx& renderCtx, int attributeId)
     : Component(renderCtx) {
   ImNodes::BeginOutputAttribute(attributeId);
 }
 
-constexpr OutputAttribute::~OutputAttribute() {
+OutputAttribute::~OutputAttribute() {
   ImNodes::EndOutputAttribute();
 }
 

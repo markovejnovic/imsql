@@ -8,8 +8,8 @@ namespace imsql::ui::nodes {
 
 class OutputAttribute final : public Component<"nodes::OutputAttribute"> {
 public:
-  explicit constexpr OutputAttribute(RenderCtx& renderCtx, int attributeId);
-  constexpr ~OutputAttribute();
+  explicit OutputAttribute(RenderCtx& renderCtx, int attributeId);
+  ~OutputAttribute();
 
   OutputAttribute(const OutputAttribute&) = delete;
   auto operator=(const OutputAttribute&) -> OutputAttribute& = delete;

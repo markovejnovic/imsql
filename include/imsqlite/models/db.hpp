@@ -130,10 +130,10 @@ public:
     return RelationshipType::None;
   }
 
-  [[nodiscard]] constexpr auto HasRelationships(
-    ColumnId column
-  ) const noexcept -> bool {
-    return columnInfo_.Relationships.contains(column);
+  [[nodiscard]] auto Relationship(ColumnId column) const noexcept -> RelationshipType;
+
+  [[nodiscard]] constexpr auto Relationships() const noexcept {
+    return relationshipInfo_.Relationships;
   }
 
 private:

@@ -35,6 +35,13 @@ public:
 
   [[nodiscard]] auto DbgStream() const noexcept -> std::ostream&;
 
+  RenderCtx() = default;
+  RenderCtx(const RenderCtx&) = delete;
+  auto operator=(const RenderCtx&) -> RenderCtx& = delete;
+  RenderCtx(RenderCtx&&) = default;
+  auto operator=(RenderCtx&&) -> RenderCtx& = default;
+  ~RenderCtx() = default;
+
 private:
   std::size_t renderDepth_ = 0;
   bool firstPaint_ = true;

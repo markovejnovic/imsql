@@ -3,7 +3,10 @@
 #include "imsqlite/models/db.hpp"
 #include "imsqlite/models/persistent.hpp"
 #include "imsqlite/serde/serde.hpp"
+#include "boost/contract.hpp"
 #include "sqlite3.h"
+#include <boost/contract/public_function.hpp>
+#include <cstdio>
 #include <format>
 #include <sstream>
 #include <utility>
@@ -22,7 +25,7 @@ void Db::PullTableInfo(models::TableInfo& tableInfo, std::size_t& objectIdCounte
     const auto table_id = models::TableId(objectIdCounter++);
     const auto table_name = tbl_name_query.getColumn(0).getString();
 
-    tableInfo.Names.insert({table_id, table_name});
+     tableInfo.Names.insert({table_id, table_name});
   }
 }
 
