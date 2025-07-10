@@ -1,5 +1,5 @@
 #include "imsqlite/ui/nodes/input_attribute.hpp"
-#include "imnodes.h"
+#include "imsqlite/pch/imnodes.hpp"
 #include "imsqlite/ui/render_ctx.hpp"
 
 namespace imsql::ui::nodes {

@@ -1,7 +1,7 @@
 #ifndef IMSQLITE_UI_STYLE_HPP
 #define IMSQLITE_UI_STYLE_HPP
 
-#include "imgui.h"
+#include "imsqlite/pch/imgui.hpp"
 #include <utility>
 
 namespace imsql::ui {

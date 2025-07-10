@@ -10,10 +10,13 @@ namespace imsql::ui::nodes {
 class Node final : Component<"Node"> {
 public:
   explicit Node(RenderCtx& renderCtx, int nodeId);
+  Node(RenderCtx& renderCtx, int nodeId, const Vec2& position);
   ~Node();
 
   void SetPosition(const Vec2& position) const noexcept;
   [[nodiscard]] auto Position() const -> Vec2;
+
+  [[nodiscard]] constexpr auto Id() const noexcept -> int { return nodeId_; }
 
   Node(const Node&) = delete;
   auto operator=(const Node&) -> Node& = delete;

@@ -1,12 +1,7 @@
 #ifndef IMSQLITE_MODELS_DB_HPP
 #define IMSQLITE_MODELS_DB_HPP
 
-#include <boost/bimap.hpp>
-#include <boost/functional/hash.hpp>
-#include <boost/unordered_map.hpp>
-#include <boost/unordered_set.hpp>
-#include <map>
-#include <ranges>
+#include "imsqlite/std.hpp"
 #include "base_types.hpp"
 #include "persistent.hpp"
 
@@ -74,6 +69,14 @@ public:
     return tableInfo_.Names.left;
   }
 
+  [[nodiscard]] auto Columns() const noexcept {
+    return columnInfo_.Names.left;
+  }
+
+  [[nodiscard]] auto ColumnExists(ColumnId column) const noexcept {
+    return columnInfo_.Names.left.count(column) != 0;
+  }
+
   [[nodiscard]] auto Columns(const TableId& table) const {
     const auto [begin, end] = tableInfo_.ColumnMemberships.equal_range(table);
     return std::ranges::subrange(begin, end)
@@ -107,6 +110,10 @@ public:
 
   [[nodiscard]] constexpr auto ColumnIsPk(ColumnId column) const noexcept -> bool {
     return columnInfo_.PkColumns.contains(column);
+  }
+
+  [[nodiscard]] constexpr auto CPersistentData() const noexcept -> const Persistent& {
+    return persistentData_;
   }
 
   [[nodiscard]] constexpr auto PersistentData() noexcept -> Persistent& {

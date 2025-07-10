@@ -1,9 +1,9 @@
 #ifndef IMSQLITE_UI_RENDER_CONTEXT_HPP
 #define IMSQLITE_UI_RENDER_CONTEXT_HPP
 
-#include <cstdlib>
-#include <iostream>
-#include <ostream>
+#include "imsqlite/controllers/app_controllers.hpp"
+#include "imsqlite/std.hpp"
+#include "imsqlite/models/views/spreadsheet_designer.hpp"
 
 namespace imsql::ui {
 
@@ -11,8 +11,15 @@ class RenderCtx final {
 public:
   static constexpr bool IsDebugEnabled = false;
 
+  explicit RenderCtx(controllers::AppControllers&& controllers) noexcept
+      : controllers_(std::move(controllers)) {}
+
   [[nodiscard]] constexpr auto RenderDepth() const noexcept -> std::size_t {
     return renderDepth_;
+  }
+
+  [[nodiscard]] constexpr auto Controllers() noexcept -> controllers::AppControllers& {
+    return controllers_;
   }
 
   void Enter() noexcept {
@@ -35,16 +42,22 @@ public:
 
   [[nodiscard]] auto DbgStream() const noexcept -> std::ostream&;
 
-  RenderCtx() = default;
   RenderCtx(const RenderCtx&) = delete;
   auto operator=(const RenderCtx&) -> RenderCtx& = delete;
   RenderCtx(RenderCtx&&) = default;
   auto operator=(RenderCtx&&) -> RenderCtx& = default;
   ~RenderCtx() = default;
 
+  // TODO(marko): This member is a bad architectural choice, but it is a temporary solution.
+  struct {
+    models::views::SpreadsheetDesigner SpreadsheetDesigner;
+  } ViewStates;
+
 private:
   std::size_t renderDepth_ = 0;
   bool firstPaint_ = true;
+
+  controllers::AppControllers controllers_;
 };
 
 } // namespace imsql::ui

@@ -1,7 +1,7 @@
 #ifndef IMSQLITE_UI_NODES_COLOR_STYLE_HPP
 #define IMSQLITE_UI_NODES_COLOR_STYLE_HPP
 
-#include "imnodes.h"
+#include "imsqlite/pch/imnodes.hpp"
 #include <utility>
 
 namespace imsql::ui::nodes {

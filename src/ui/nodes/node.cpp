@@ -1,5 +1,5 @@
 #include "imsqlite/ui/nodes/node.hpp"
-#include "imnodes.h"
+#include "imsqlite/pch/imnodes.hpp"
 #include "imsqlite/ui/detail/imgui_interop.hpp"
 
 namespace imsql::ui::nodes {
@@ -7,6 +7,11 @@ namespace imsql::ui::nodes {
 Node::Node(RenderCtx& renderCtx, int nodeId)
     : Component(renderCtx), nodeId_(nodeId) {
   ImNodes::BeginNode(nodeId_);
+}
+
+Node::Node(RenderCtx& renderCtx, int nodeId, const Vec2& position)
+    : Node(renderCtx, nodeId) {
+  SetPosition(position);
 }
 
 Node::~Node() {

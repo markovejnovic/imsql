@@ -1,5 +1,5 @@
 #include "imsqlite/ui/nodes/title_bar.hpp"
-#include "imnodes.h"
+#include "imsqlite/pch/imnodes.hpp"
 
 namespace imsql::ui::nodes {
 

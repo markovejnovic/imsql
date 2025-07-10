@@ -1,7 +1,7 @@
 #ifndef IMSQLITE_UI_DETAIL_IMGUI_INTEROP_HPP
 #define IMSQLITE_UI_DETAIL_IMGUI_INTEROP_HPP
 
-#include "imgui.h"
+#include "imsqlite/pch/imgui.hpp"
 #include "imgui_internal.h"
 #include "imsqlite/ui/base_types.hpp"
 #include <string>

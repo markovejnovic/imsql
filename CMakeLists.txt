@@ -11,16 +11,29 @@ set(SANITIZER_FLAGS "-fsanitize=address,undefined" "-fno-omit-frame-pointer")
 
 find_package(glfw3 REQUIRED)
 find_package(Boost REQUIRED serialization iostreams)
+find_package(GTest)
 add_subdirectory(third_party)
+
+if (GTest_FOUND)
+  enable_testing()
+endif()
 
 add_executable(imsql)
 target_include_directories(imsql PRIVATE include)
+target_precompile_headers(
+  imsql PRIVATE
+  "include/imsqlite/std.hpp"
+  "include/imsqlite/pch/imgui.hpp"
+  "include/imsqlite/pch/imnodes.hpp"
+)
 target_sources(imsql PRIVATE
   src/controllers/db.cpp
+  src/controllers/spreadsheet.cpp
   src/main.cpp
   src/models/base_types.cpp
   src/models/db.cpp
   src/os/platform/macos.mm
+  src/ui/button.cpp
   src/ui/input_text.cpp
   src/ui/nodes/editor.cpp
   src/ui/nodes/input_attribute.cpp
@@ -37,10 +50,6 @@ target_sources(imsql PRIVATE
   src/views/main_window.cpp
   src/views/spreadsheet_designer.cpp
 )
-target_sources(imsql PRIVATE
-  FILE_SET modules TYPE CXX_MODULES FILES
-  #src/models/db.cpp
-)
 target_link_libraries(imsql PRIVATE
   "-framework Cocoa"
   "-framework Metal"
@@ -55,5 +64,21 @@ target_link_libraries(imsql PRIVATE
   metal_cpp
 )
 
-target_compile_options(imsql PRIVATE ${SANITIZER_FLAGS})
+target_compile_options(imsql PRIVATE ${SANITIZER_FLAGS} -ftime-trace)
 target_link_options(imsql PRIVATE ${SANITIZER_FLAGS})
+
+# TODO(marko): Move imsql library stuff into a library structure
+add_executable(test_dedup
+  tests/test_dedup.cpp
+)
+
+if (GTest_FOUND)
+  target_include_directories(test_dedup PRIVATE include)
+  target_link_libraries(test_dedup PRIVATE GTest::gtest_main)
+
+  target_compile_options(test_dedup PRIVATE ${SANITIZER_FLAGS})
+  target_link_options(test_dedup PRIVATE ${SANITIZER_FLAGS})
+
+  include(GoogleTest)
+  gtest_discover_tests(test_dedup)
+endif()

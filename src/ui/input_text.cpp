@@ -1,6 +1,6 @@
 #include "imsqlite/ui/input_text.hpp"
 #include "imsqlite/ui/render_ctx.hpp"
-#include "imgui.h"
+#include "imsqlite/pch/imgui.hpp"
 #include "gsl/gsl"
 
 namespace imsql::ui {
@@ -28,7 +28,6 @@ constexpr InputText::InputText(
       }
       return 0;
   };
-
 
   ImGui::InputText(
       label,

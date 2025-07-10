@@ -19,7 +19,13 @@ struct ColumnId final : public detail::UniqueId {
   [[nodiscard]] constexpr auto operator!= (const ColumnId& other) const -> bool {
     return !(*this == other);
   }
+
+  template <class Archive> friend void serialize(Archive&, ColumnId&, unsigned int);
 };
+
+inline auto to_string(const ColumnId& columnId) -> std::string {
+  return std::to_string(static_cast<std::size_t>(columnId));
+}
 
 auto hash_value(const ColumnId& columnId) -> std::size_t;
 
@@ -39,6 +45,10 @@ struct TableId final : public detail::UniqueId {
 
   template <class Archive> friend void serialize(Archive&, TableId&, unsigned int);
 };
+
+inline auto to_string(const TableId& columnId) -> std::string {
+  return std::to_string(static_cast<std::size_t>(columnId));
+}
 
 auto hash_value(const TableId& columnId) -> std::size_t;
 

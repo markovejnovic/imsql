@@ -13,35 +13,52 @@ class Component {
 public:
   Component(const Component&) = delete;
   auto operator=(const Component&) -> Component& = delete;
-  Component(Component&&) = delete;
-  auto operator=(Component&&) -> Component& = delete;
+  Component(Component&& other) noexcept
+      : renderCtx_(std::exchange(other.renderCtx_, nullptr)) {};
+  auto operator=(Component&& other) noexcept -> Component& {
+    if (this == &other) {
+      return *this;
+    }
+
+    std::exchange(other.renderCtx_, nullptr);
+
+    return *this;
+  };
 
 protected:
   // NOLINTNEXTLINE(google-explicit-constructor, hicpp-explicit-conversions)
-  constexpr Component(RenderCtx& renderCtx) : renderCtx_(renderCtx) {
-    DebugRenderBegin(renderCtx_);
+  constexpr Component(RenderCtx& renderCtx) : renderCtx_(&renderCtx) {
+    DebugRenderBegin();
   }
 
   constexpr ~Component() {
-    DebugRenderEnd(renderCtx_);
+    DebugRenderEnd();
   }
 
 private:
-  void DebugRenderBegin(const RenderCtx& renderCtx) const {
-    renderCtx.DbgStream() << std::string(renderCtx.RenderDepth() * 2, ' ');
-    renderCtx.DbgStream() << "<" << label.String() << ">";
-    renderCtx.DbgStream() << "\n";
-    renderCtx_.Enter();
+  void DebugRenderBegin() const {
+    if (renderCtx_ == nullptr) {
+      return;
+    }
+
+    renderCtx_->DbgStream() << std::string(renderCtx_->RenderDepth() * 2, ' ');
+    renderCtx_->DbgStream() << "<" << label.String() << ">";
+    renderCtx_->DbgStream() << "\n";
+    renderCtx_->Enter();
   }
 
-  void DebugRenderEnd(const RenderCtx& renderCtx) const {
-    renderCtx_.Exit();
-    renderCtx.DbgStream() << std::string(renderCtx.RenderDepth() * 2, ' ');
-    renderCtx.DbgStream() << "</" << label.String() << ">";
-    renderCtx.DbgStream() << "\n";
+  void DebugRenderEnd() const {
+    if (renderCtx_ == nullptr) {
+      return;
+    }
+
+    renderCtx_->Exit();
+    renderCtx_->DbgStream() << std::string(renderCtx_->RenderDepth() * 2, ' ');
+    renderCtx_->DbgStream() << "</" << label.String() << ">";
+    renderCtx_->DbgStream() << "\n";
   }
 
-  RenderCtx& renderCtx_;
+  RenderCtx* renderCtx_ = nullptr;
 };
 
 } // namespace imsql::ui

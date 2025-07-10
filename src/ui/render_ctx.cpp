@@ -1,6 +1,7 @@
 #include "imsqlite/ui/render_ctx.hpp"
 #include "boost/iostreams/device/null.hpp"
 #include "boost/iostreams/stream.hpp"
+#include <iostream>
 
 namespace imsql::ui {
 

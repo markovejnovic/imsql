@@ -1,9 +1,9 @@
 #include "imsqlite/controllers/db.hpp"
+#include "imsqlite/controllers/identifier.hpp"
 #include "imsqlite/models/base_types.hpp"
 #include "imsqlite/models/db.hpp"
 #include "imsqlite/models/persistent.hpp"
 #include "imsqlite/serde/serde.hpp"
-#include "boost/contract.hpp"
 #include "sqlite3.h"
 #include <boost/contract/public_function.hpp>
 #include <cstdio>
@@ -13,11 +13,12 @@
 
 namespace imsql::controllers {
 
-Db::Db(SQLite::Database&& database) noexcept
-    : db_(std::move(database)) {}
+Db::Db(SQLite::Database&& database, std::shared_ptr<Identifier> identCtrl) noexcept
+    : db_(std::move(database)), identCtrl_(std::move(identCtrl)) {}
 
-Db::Db(const std::filesystem::path& dbPath) noexcept
-    : db_(SQLite::Database{dbPath.string(), SQLite::OPEN_READWRITE}) {}
+Db::Db(const std::filesystem::path& dbPath, std::shared_ptr<Identifier> identCtrl) noexcept
+    : db_(SQLite::Database{dbPath.string(), SQLite::OPEN_READWRITE}),
+      identCtrl_(std::move(identCtrl)) {}
 
 void Db::PullTableInfo(models::TableInfo& tableInfo, std::size_t& objectIdCounter) {
   SQLite::Statement tbl_name_query(db_, "SELECT name FROM sqlite_master WHERE type='table';");
@@ -113,7 +114,7 @@ void Db::CreatePersistentTableIfNotExists() {
            "data TEXT NOT NULL);");
 }
 
-auto Db::DefaultPersistentData() const -> models::Persistent {
+auto Db::DefaultPersistentData() -> models::Persistent {
   // Return a default persistent data object.
   return models::Persistent{
     .TableNodePositions = boost::unordered_map<models::TableId, ui::Vec2>{}
@@ -140,25 +141,22 @@ auto Db::PullPersistentData() -> models::Persistent {
   }
 }
 
-auto Db::PullFreshState() -> models::Db {
-  models::Db new_model;
-  new_model.path_ = db_.getFilename();
+void Db::PullFreshState() {
+  model_.path_ = db_.getFilename();
 
   // TODO(marko): The object identification is quite fragile.
   std::size_t object_id = 0;
 
-  PullTableInfo(new_model.tableInfo_, object_id);
-  PullColumnInfo(new_model.columnInfo_, new_model.tableInfo_, object_id);
-  PullRelationshipInfo(new_model);
-  new_model.persistentData_ = PullPersistentData();
-
-  return new_model;
+  PullTableInfo(model_.tableInfo_, object_id);
+  PullColumnInfo(model_.columnInfo_, model_.tableInfo_, object_id);
+  PullRelationshipInfo(model_);
+  model_.persistentData_ = PullPersistentData();
 }
 
-void Db::StorePersistentData(const models::Db& database) {
+void Db::StorePersistentData() {
   CreatePersistentTableIfNotExists();
   std::ostringstream oss;
-  serde::Serialize(oss, database.persistentData_);
+  serde::Serialize(oss, model_.persistentData_);
 
   SQLite::Statement query(db_, "INSERT OR REPLACE INTO __imsql_data (id, data) VALUES (1, ?);");
   query.bind(1, oss.str());

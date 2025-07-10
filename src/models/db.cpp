@@ -1,7 +1,6 @@
 #include "imsqlite/models/db.hpp"
 #include "imsqlite/models/base_types.hpp"
-#include <boost/functional/hash.hpp>
-#include <ranges>
+#include "imsqlite/std.hpp"
 
 namespace imsql::models {
 
