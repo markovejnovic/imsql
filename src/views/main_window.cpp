@@ -4,11 +4,11 @@
 #include "imsqlite/ui/tab_item.hpp"
 #include "imsqlite/ui/window.hpp"
 #include "imsqlite/views/spreadsheet_designer.hpp"
-#include "imsqlite/std.hpp"
+#include "imsqlite/pch/std.hpp"
 
 namespace imsql::views {
 
-void MainWindow(ui::RenderCtx& ctx) {
+void MainWindow(ui::RenderCtx& ctx, imsql::presenters::PresenterCtx& presenterCtx) {
   const auto title = ctx.Controllers().Db.CModel().Path();
 
   ui::Window window{ctx, title};
@@ -30,7 +30,7 @@ void MainWindow(ui::RenderCtx& ctx) {
   {
     ui::TabItem designer_tab{ctx, "Designer"};
     if (designer_tab.Rendering()) {
-      SpreadsheetDesigner(ctx);
+      SpreadsheetDesigner(ctx, presenterCtx.Designer);
     }
   }
 }

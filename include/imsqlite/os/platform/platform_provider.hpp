@@ -23,6 +23,10 @@ public:
                                                      std::move(dimensions));
   }
 
+  auto CreateFrame(const std::string& title) -> FrameHandleImpl {
+    return static_cast<Impl*>(this)->CreateFrameImpl(std::move(title));
+  }
+
 private:
   PlatformProvider() = default;
   friend Impl;

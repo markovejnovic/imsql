@@ -117,7 +117,7 @@ void Db::CreatePersistentTableIfNotExists() {
 auto Db::DefaultPersistentData() -> models::Persistent {
   // Return a default persistent data object.
   return models::Persistent{
-    .TableNodePositions = boost::unordered_map<models::TableId, ui::Vec2>{}
+    .TableNodePositions = boost::unordered_map<int, ui::Vec2>{}
   };
 }
 

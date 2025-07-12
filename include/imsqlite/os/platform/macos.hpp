@@ -139,6 +139,8 @@ public:
     std::pair<std::size_t, std::size_t> dimensions
   ) -> MacOSFrameHandle;
 
+  auto CreateFrameImpl(const std::string& title) -> MacOSFrameHandle;
+
 private:
   detail::GlfwRuntime glfwRuntime_;
 };

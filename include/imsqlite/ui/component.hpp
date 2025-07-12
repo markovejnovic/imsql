@@ -35,6 +35,15 @@ protected:
     DebugRenderEnd();
   }
 
+  [[nodiscard]] constexpr auto GetRenderCtx() const -> RenderCtx& {
+    if (renderCtx_ == nullptr) {
+      throw std::runtime_error("Render context is not set for the component. Are you using it "
+                               "after a move?");
+    }
+
+    return *renderCtx_;
+  }
+
 private:
   void DebugRenderBegin() const {
     if (renderCtx_ == nullptr) {

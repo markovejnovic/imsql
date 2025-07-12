@@ -189,4 +189,17 @@ auto MacOSProvider::CreateFrameImpl(
   return{title, std::move(dimensions)};
 }
 
+auto MacOSProvider::CreateFrameImpl(
+  const std::string& title
+) -> MacOSFrameHandle {
+  const NSScreen *mainScreen = [NSScreen mainScreen];
+  NSRect visibleFrame = [mainScreen visibleFrame];
+
+  return CreateFrameImpl(
+    title,
+    {static_cast<std::size_t>(visibleFrame.size.width),
+     static_cast<std::size_t>(visibleFrame.size.height)}
+  );
+}
+
 } // namespace imsql::os

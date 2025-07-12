@@ -4,13 +4,13 @@
 #include "base_types.hpp"
 #include "imsqlite/models/spreadsheet.hpp"
 #include "imsqlite/ui/base_types.hpp"
-#include "imsqlite/std.hpp"
+#include "imsqlite/pch/std.hpp"
 
 namespace imsql::models {
 
 /// @brief Data stored across multiple executions.
 struct Persistent {
-  boost::unordered_map<TableId, ui::Vec2> TableNodePositions;
+  boost::unordered_map<int, ui::Vec2> TableNodePositions;
   boost::optional<ui::Vec2> SpreadsheetNodePosition = boost::none;
 
   models::Spreadsheet MainSheet;

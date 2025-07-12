@@ -2,8 +2,7 @@
 #define IMSQLITE_UI_RENDER_CONTEXT_HPP
 
 #include "imsqlite/controllers/app_controllers.hpp"
-#include "imsqlite/std.hpp"
-#include "imsqlite/models/views/spreadsheet_designer.hpp"
+#include "imsqlite/pch/std.hpp"
 
 namespace imsql::ui {
 
@@ -47,11 +46,6 @@ public:
   RenderCtx(RenderCtx&&) = default;
   auto operator=(RenderCtx&&) -> RenderCtx& = default;
   ~RenderCtx() = default;
-
-  // TODO(marko): This member is a bad architectural choice, but it is a temporary solution.
-  struct {
-    models::views::SpreadsheetDesigner SpreadsheetDesigner;
-  } ViewStates;
 
 private:
   std::size_t renderDepth_ = 0;

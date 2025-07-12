@@ -1,0 +1,15 @@
+# Doxyfile.in
+PROJECT_NAME           = @PROJECT_NAME@
+OUTPUT_DIRECTORY       = @CMAKE_CURRENT_BINARY_DIR@/docs
+GENERATE_LATEX         = NO
+INPUT                  = @CMAKE_SOURCE_DIR@/include
+RECURSIVE              = YES
+QUIET                  = YES
+GENERATE_HTML          = YES
+HAVE_DOT           = YES
+CALL_GRAPH         = YES
+CALLER_GRAPH       = YES
+DOT_IMAGE_FORMAT   = svg
+INTERACTIVE_SVG    = YES
+EXTRACT_ALL        = YES
+EXTRACT_PRIVATE    = NO

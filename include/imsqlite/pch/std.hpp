@@ -5,6 +5,7 @@
 #include <boost/functional/hash.hpp>
 #include <boost/none.hpp>
 #include <boost/optional.hpp>
+#include <boost/range/numeric.hpp>
 #include <boost/serialization/version.hpp>
 #include <boost/unordered_map.hpp>
 #include <boost/unordered_set.hpp>
@@ -15,10 +16,13 @@
 #include <exception>
 #include <filesystem>
 #include <format>
+#include <gsl/gsl>
 #include <map>
 #include <memory>
+#include <range/v3/all.hpp>
 #include <ranges>
 #include <string>
+#include <variant>
 
 namespace imsql {
 

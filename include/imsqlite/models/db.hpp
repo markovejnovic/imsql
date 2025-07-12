@@ -1,7 +1,7 @@
 #ifndef IMSQLITE_MODELS_DB_HPP
 #define IMSQLITE_MODELS_DB_HPP
 
-#include "imsqlite/std.hpp"
+#include "imsqlite/pch/std.hpp"
 #include "base_types.hpp"
 #include "persistent.hpp"
 
@@ -84,6 +84,10 @@ public:
   }
 
   [[nodiscard]] constexpr auto TableName(TableId table) const -> std::string {
+    return tableInfo_.Names.left.at(table);
+  }
+
+  [[nodiscard]] constexpr auto TableNameSV(TableId table) const -> std::string_view {
     return tableInfo_.Names.left.at(table);
   }
 

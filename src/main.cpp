@@ -1,3 +1,6 @@
+#include "imsqlite/presenters/presenter_ctx.hpp"
+#define _GNU_SOURCE
+#include "imsqlite/models/dg/dg.hpp"
 #include "imsqlite/pch/imgui.hpp"
 #include "imsqlite/pch/imnodes.hpp"
 #include "imsqlite/controllers/app_controllers.hpp"
@@ -8,9 +11,11 @@
 #include "imsqlite/models/spreadsheet.hpp"
 #include "imsqlite/models/theme.hpp"
 #include "imsqlite/os/os.hpp"
-#include "imsqlite/std.hpp"
+#include "imsqlite/pch/std.hpp"
 #include "imsqlite/ui/render_ctx.hpp"
 #include "imsqlite/views/main_window.hpp"
+#include <iostream>
+#include <boost/stacktrace.hpp>
 
 namespace {
 constexpr std::pair<std::size_t, std::size_t> kDefaultDimensions{800, 600};
@@ -47,7 +52,7 @@ auto Main(int /*argc*/, char *const *const /*argv*/) -> int {
 
   os::Provider os_provider;
 
-  auto frame = os_provider.CreateFrame("Hello!", kDefaultDimensions);
+  auto frame = os_provider.CreateFrame("ImSQLite");
 
   auto ident_controller = std::make_shared<controllers::Identifier>();
 
@@ -64,17 +69,24 @@ auto Main(int /*argc*/, char *const *const /*argv*/) -> int {
   static const constinit models::Theme theme {};
 
   render_ctx.Controllers().Db.PullFreshState();
-  render_ctx.Controllers().Sheets.model_ =
-    render_ctx.Controllers().Db.CModel().CPersistentData().MainSheet;
+
+  models::dg::DG design_graph;
+  design_graph.AttachDatabase(render_ctx.Controllers().Db.CModel());
+
+  design_graph.DumpDot(std::cout);
+
+  presenters::PresenterCtx presenter_ctx{
+    .Designer = presenters::DesignerPresenter{ std::move(design_graph) },
+  };
 
   frame.StartRendering([&](const os::RenderInfo& renderInfo) {
-    views::MainWindow(render_ctx);
+    views::MainWindow(render_ctx, presenter_ctx);
     render_ctx.RenderCycle();
   }, [&]() {
     // TODO(marko): Yucky hack. Wish I had a PersistenceController
     render_ctx.Controllers().Db.UpdatePersistentData(
       [&](auto& pdata) {
-        pdata.MainSheet = render_ctx.Controllers().Sheets.CModel();
+        //pdata.MainSheet = render_ctx.Controllers().Sheets.CModel();
       });
     render_ctx.Controllers().Db.StorePersistentData();
   });
@@ -89,11 +101,13 @@ auto main(int /*argc*/, char *const *const /*argv*/) -> int {
     imsql::Main(0, nullptr);
   } catch (const std::exception& e) {
     // NOLINTNEXTLINE(cppcoreguidelines-pro-type-vararg,hicpp-vararg)
-    (void)fprintf(stderr, "Uncaught exception: %s\n", e.what());
+    std::cerr << std::format("Unchaught exception: {}\n", e.what());
+    std::cerr << boost::stacktrace::stacktrace() << "\n";
     return 1;
   } catch (...) {
     // NOLINTNEXTLINE(cppcoreguidelines-pro-type-vararg,hicpp-vararg)
-    (void)fprintf(stderr, "Unsupported error.\n");
+    std::cerr << std::format("Unsupported Error Thrown.");
+    std::cerr << boost::stacktrace::stacktrace() << "\n";
     return 1;
   }
 
