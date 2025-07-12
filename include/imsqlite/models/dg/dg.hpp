@@ -9,21 +9,41 @@
 
 namespace imsql::models::dg {
 
+enum class IOMode : uint8_t {
+  Input = 0,
+  Output = 1,
+};
+
+struct VertexDescriptorStructure {
+  IOMode Mode : 1;
+  unsigned int Id : sizeof(int) - 1;
+};
+
+static_assert(sizeof(VertexDescriptorStructure) == sizeof(int),
+              "VertexDescriptor must be the same size as int.");
+
+union VertexDescriptor {
+  int AsInt;
+  VertexDescriptorStructure AsStruct;
+};
+
+static_assert(sizeof(VertexDescriptor) == sizeof(int),
+              "VertexDescriptor must be the same size as int.");
+
 /// @brief Represents the design graph, ie. the graph you see in the "Designer" tab of the GUI.
 class DG {
 public:
-  enum class VertexNodeDirection : uint8_t {
+  enum class VertexDirection : uint8_t {
     Input,
     Output,
+    Bidirectional,
   };
 
-private:
   /// @note Each vertex has this metadata attached to it.
   struct VertexProperty {
     std::string Name;
     Node* Node;
-    int Id;
-    VertexNodeDirection Direction;
+    VertexDirection Direction;
   };
 
   /// @note Each edge has this metadata attached to it.
@@ -31,9 +51,13 @@ private:
     int Id;
   };
 
+private:
   boost::adjacency_list<boost::vecS, boost::vecS, boost::bidirectionalS,
                         VertexProperty, EdgeProperty> graph_;
+public:
   using VertexType = boost::graph_traits<decltype(graph_)>::vertex_descriptor;
+  static_assert(std::is_same_v<VertexType, unsigned long>,
+                "VertexType must be the same as VertexDescriptor.");
   using EdgeType = boost::graph_traits<decltype(graph_)>::edge_descriptor;
 
   /// @brief Information associated with each node in the design graph.
@@ -42,6 +66,7 @@ private:
     int NodeId;
   };
 
+private:
   /// @brief Manages the lifetime of nodes in the design graph.
   std::vector<std::unique_ptr<Node>> nodesPool_;
 
@@ -66,7 +91,7 @@ public:
     return nodeProperties_.at(node).Vertices;
   }
 
-  [[nodiscard]] constexpr auto VertexDirection(VertexType vtx) const noexcept {
+  [[nodiscard]] constexpr auto GetVertexDirection(VertexType vtx) const noexcept {
     return graph_[vtx].Direction;
   }
 
@@ -97,7 +122,6 @@ public:
   /// @brief Retrieve the unique identifier for the given object.
   /// @{
   [[nodiscard]] auto GetId(const Node* node) const noexcept -> int;
-  [[nodiscard]] auto GetId(const VertexType& vertex) const noexcept -> int;
   [[nodiscard]] auto GetId(const EdgeType& edge) const noexcept -> int;
   /// @}
 
@@ -107,22 +131,16 @@ public:
     auto* node_ptr = AddEmptyNode(std::make_unique<T>());
     // @todo Please make the vertex adding shared with the DB behavior in the cpp
     for (const auto& input_field : node_ptr->InputFields()) {
-      MakeVertex(std::string(input_field), node_ptr, VertexNodeDirection::Input);
+      MakeVertex(std::string(input_field), node_ptr, VertexDirection::Input);
     }
 
     for (const auto& output_field : node_ptr->OutputFields()) {
-      MakeVertex(std::string(output_field), node_ptr, VertexNodeDirection::Output);
+      MakeVertex(std::string(output_field), node_ptr, VertexDirection::Output);
     }
   }
 
   constexpr void AddEdge(VertexType source, VertexType target) {
     MakeEdge(source, target);
-  }
-
-  constexpr void AddEdge(std::pair<int, int> edge) {
-    const auto source_vtx = vertexIds_.at(edge.first);
-    const auto target_vtx = vertexIds_.at(edge.second);
-    MakeEdge(source_vtx, target_vtx);
   }
 
 private:
@@ -142,13 +160,12 @@ private:
   }
 
   [[maybe_unused]] constexpr auto MakeVertex(std::string name, Node* node,
-                                             VertexNodeDirection direction) -> VertexType {
+                                             VertexDirection direction) -> VertexType {
     const auto vtx_id = nextObjectId_++;
 
     auto vtx = boost::add_vertex(VertexProperty{
       .Name = std::move(name),
       .Node = node,
-      .Id = vtx_id,
       .Direction = direction,
     }, graph_);
 

@@ -21,7 +21,7 @@ void DG::AttachDatabase(const models::Db& database) {
       scratchpad[column_id] = MakeVertex(
         database.ColumnName(column_id),
         table_node_ptr,
-        VertexNodeDirection::Output);
+        VertexDirection::Output);
     }
   }
 
@@ -31,18 +31,16 @@ void DG::AttachDatabase(const models::Db& database) {
     const auto from_vtx = scratchpad[edge.ToColumn];
     const auto to_vtx = scratchpad[edge.FromColumn];
     // We need to patch the vertex directions.
-    graph_[from_vtx].Direction = VertexNodeDirection::Output;
-    graph_[to_vtx].Direction = VertexNodeDirection::Input;
+    graph_[from_vtx].Direction = VertexDirection::Output;
+    // Note that instead of labeling the to vertex as input, we label it as bidirectional. This
+    // model is important as it allows the user to propagate reference data.
+    graph_[to_vtx].Direction = VertexDirection::Bidirectional;
     MakeEdge(from_vtx, to_vtx);
   }
 }
 
 auto DG::GetId(const Node* node) const noexcept -> int {
   return nodeProperties_.at(node).NodeId;
-}
-
-auto DG::GetId(const VertexType& vertex) const noexcept -> int {
-  return graph_[vertex].Id;
 }
 
 auto DG::GetId(const EdgeType& edge) const noexcept -> int {

@@ -32,8 +32,9 @@ public:
     model_.AddOperatorNode<T>();
   }
 
-  constexpr void AddEdge(std::pair<int, int> direction) {
-    model_.AddEdge(direction);
+  constexpr void AddEdge(models::dg::DG::VertexType source,
+                         models::dg::DG::VertexType target) {
+    model_.AddEdge(source, target);
   }
 
   /// @brief Invoked when the user adds a new node to the design graph.

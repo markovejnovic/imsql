@@ -1,3 +1,4 @@
+#include "imsqlite/dsalg/fp.hpp"
 #include "imsqlite/math/interval.hpp"
 #include "imsqlite/models/base_types.hpp"
 #include "imsqlite/models/db.hpp"
@@ -7,11 +8,12 @@
 #include "imsqlite/ui/base_types.hpp"
 #include "imsqlite/ui/button.hpp"
 #include "imsqlite/ui/dnd.hpp"
+#include "imsqlite/ui/nodes/bidirectional_attribute.hpp"
 #include "imsqlite/ui/nodes/editor.hpp"
 #include "imsqlite/ui/nodes/input_attribute.hpp"
+#include "imsqlite/ui/nodes/output_attribute.hpp"
 #include "imsqlite/ui/nodes/link.hpp"
 #include "imsqlite/ui/nodes/node.hpp"
-#include "imsqlite/ui/nodes/output_attribute.hpp"
 #include "imsqlite/ui/nodes/title_bar.hpp"
 #include "imsqlite/ui/render_ctx.hpp"
 #include "imsqlite/ui/text.hpp"
@@ -19,10 +21,59 @@
 #include "imsqlite/pch/std.hpp"
 #include "imsqlite/ui/tooltip.hpp"
 #include <boost/contract/assert.hpp>
+#include <variant>
 
 namespace imsql::views {
 
 namespace {
+
+struct AttrIdInput {
+  int Id;
+  explicit AttrIdInput(const models::dg::DG::VertexType& vtx) : Id(([&]() {
+    const auto vtx_id = gsl::narrow<unsigned int>(vtx);
+    const auto signed_vtx_id = gsl::narrow<int>(vtx);
+    return signed_vtx_id;
+  })()) {}
+};
+
+struct AttrIdOutput {
+  int Id;
+  explicit AttrIdOutput(const models::dg::DG::VertexType& vtx) : Id(([&]() {
+    const auto vtx_id = gsl::narrow<unsigned int>(vtx);
+    const auto signed_vtx_id = gsl::narrow<int>(vtx);
+    return -signed_vtx_id;
+  })()) {}
+};
+struct AttrIdBidirectional {
+  AttrIdInput IdIn;
+  AttrIdOutput IdOut;
+
+  explicit AttrIdBidirectional(
+    const models::dg::DG::VertexType& vtx
+  ) : IdIn(vtx), IdOut(vtx) {}
+};
+
+using AttrId = std::variant<AttrIdInput, AttrIdOutput, AttrIdBidirectional>;
+
+/// @brief Map an attribute ID to a vertex ID.
+auto AttrIdToVertex(int attrId) -> models::dg::DG::VertexType {
+  return std::abs(attrId);
+}
+
+constexpr auto VertexToImNodeId(const models::dg::DG& dg,
+                                const models::dg::DG::VertexType& vtx) -> AttrId {
+  const auto vtx_direction = dg.GetVertexDirection(vtx);
+
+  switch (vtx_direction) {
+    case models::dg::DG::VertexDirection::Input:
+      return AttrIdInput{ vtx };
+    case models::dg::DG::VertexDirection::Output:
+      return AttrIdOutput{ vtx };
+    case models::dg::DG::VertexDirection::Bidirectional: {
+      return AttrIdBidirectional{ vtx };
+    }
+  }
+}
 
 template <class F>
 void onlyOnFirstPaint(imsql::presenters::DesignerPresenter& presenter, F&& fxn) {
@@ -53,22 +104,29 @@ void editorNodes(ui::RenderCtx& ctx, imsql::presenters::DesignerPresenter& prese
     for (const auto& vtx : dg.Vertices(node)) {
       static_assert(std::is_integral_v<std::remove_reference_t<decltype(vtx)>>, 
                     "Vertex type must be integral for the node ID");
-      const int vtx_id = dg.GetId(vtx);
-
-      switch (dg.VertexDirection(vtx)) {
-        case models::dg::DG::VertexNodeDirection::Input: {
-          // The vertex is an input vertex, so we need to render it as an input vertex.
-          ui::nodes::InputAttribute input_attr{ctx, vtx_id};
-          ui::Text vtx_name_text{ctx, std::format("{} ({})", dg.VertexName(vtx), vtx_id)};
-          continue;
-        }
-        case models::dg::DG::VertexNodeDirection::Output: {
-          // The vertex is an output vertex, so we need to render it as an output vertex.
-          ui::nodes::OutputAttribute output_attr{ctx, vtx_id};
-          ui::Text vtx_name_text{ctx, std::format("{} ({})", dg.VertexName(vtx), vtx_id)};
-          continue;
-        }
-      }
+      std::visit(
+        dsalg::Overloads {
+          [&](const AttrIdInput& attr) {
+            ui::nodes::InputAttribute input_attr{ctx, attr.Id};
+            ui::Text vtx_name_text{ctx, std::format("{} ({})", dg.VertexName(vtx), attr.Id)};
+          },
+          [&](const AttrIdOutput& attr) {
+            ui::nodes::OutputAttribute output_attr{ctx, attr.Id};
+            ui::Text vtx_name_text{ctx, std::format("{} ({})", dg.VertexName(vtx), attr.Id)};
+          },
+          [&](const AttrIdBidirectional& attr) {
+            ui::nodes::BidirectionalAttribute bidirectional_attr{
+              ctx,
+              attr.IdIn.Id, [&]() {
+                ui::Text vtx_name_text{ctx, std::format("{} ({} -> {})", dg.VertexName(vtx),
+                                                        attr.IdIn.Id, attr.IdOut.Id)};
+              },
+              attr.IdOut.Id, []() {},
+            };
+          },
+        },
+        VertexToImNodeId(dg, vtx)
+      );
     }
   }
 }
@@ -83,7 +141,8 @@ void editorEdges(ui::RenderCtx& ctx, const imsql::presenters::DesignerPresenter&
     auto src_vtx = dg.EdgeSource(edge);
     auto tgt_vtx = dg.EdgeTarget(edge);
 
-    ui::nodes::Link link_node{ctx, dg.GetId(edge), dg.GetId(src_vtx), dg.GetId(tgt_vtx)};
+    ui::nodes::Link link_node{ctx, dg.GetId(edge),
+                              AttrIdOutput(src_vtx).Id, AttrIdInput(tgt_vtx).Id};
   }
 }
 
@@ -118,7 +177,13 @@ void SpreadsheetDesigner(ui::RenderCtx& ctx, imsql::presenters::DesignerPresente
 
     std::optional link_created = ui::nodes::Link::WhichLinkCreated();
     if (link_created.has_value()) {
-      presenter.AddEdge(*link_created);
+      // We need to convert the IDs back 
+      printf("Connecting attributes %d and %d\n",
+             link_created->first, link_created->second);
+      printf("Converted to vertices %d and %d\n",
+             AttrIdToVertex(link_created->first),
+             AttrIdToVertex(link_created->second));
+      presenter.AddEdge(AttrIdToVertex(link_created->first), AttrIdToVertex(link_created->second));
     }
 
     presenter.OnPaint();
