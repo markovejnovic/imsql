@@ -1,6 +1,0 @@
-#ifndef IMSQLITE_PCH_IMNODES_HPP
-#define IMSQLITE_PCH_IMNODES_HPP
-
-#include "imnodes.h"
-
-#endif // IMSQLITE_PCH_IMNODES_HPP
