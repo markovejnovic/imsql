@@ -28,4 +28,14 @@ auto Link::WhichLinkCreated() noexcept -> std::optional<std::pair<int, int>> {
   return std::make_pair(start_attr_id, end_attr_id);
 }
 
+auto Link::WhichLinkDestroyed() noexcept -> std::optional<int> {
+  int link_id = 0;
+
+  if (!ImNodes::IsLinkDestroyed(&link_id)) {
+    return std::nullopt;
+  }
+
+  return link_id;
+}
+
 }  // namespace immm::nodes

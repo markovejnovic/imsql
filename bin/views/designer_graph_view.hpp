@@ -3,18 +3,25 @@
 
 #include "immm/render_ctx.hpp"
 #include "models/dg/dg.hpp"
+#include "models/theme_model.hpp"
 
 namespace imsql {
 
 struct DesignerGraphView {
-  explicit DesignerGraphView(imsql::dg::DesignGraphModel& model) : model_(&model) {}
+  DesignerGraphView(imsql::dg::DesignGraphModel& model, ThemeModel& themeModel)
+    : model_(&model),
+      themeModel_(&themeModel) {}
 
   /// @brief Render the designer graph view.
   void operator()(immm::RenderCtx& ctx);
 
 private:
   dg::DesignGraphModel* model_;
+  ThemeModel* themeModel_;
+
   bool hasPainted_ = false;
+
+  void renderEditorNodes(immm::RenderCtx& ctx);
 };
 
 } // namespace imsql

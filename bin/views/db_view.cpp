@@ -21,7 +21,7 @@ void DbView::operator()(immm::RenderCtx& ctx) {
   {
     immm::TabItem spreadsheet_tab{ctx, "Spreadsheet"};
     if (spreadsheet_tab.Rendering()) {
-      // Render the spreadsheet view here.
+      SpreadsheetTableView_(ctx);
     }
   }
 

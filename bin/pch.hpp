@@ -3,6 +3,7 @@
 
 #define _GNU_SOURCE
 #include <boost/bimap/bimap.hpp>
+#include <boost/contract.hpp>
 #include <boost/graph/adjacency_list.hpp>
 #include <boost/stacktrace.hpp>
 #include <boost/unordered_map.hpp>

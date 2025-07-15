@@ -28,6 +28,9 @@ class Link final : Component<"nodes::Link"> {
 
   /// @brief Test whether the user requested a link between two attributes.
   static auto WhichLinkCreated() noexcept -> std::optional<std::pair<int, int>>;
+
+  /// @brief Test whether the user destroyed a link between two attributes.
+  static auto WhichLinkDestroyed() noexcept -> std::optional<int>;
 };
 
 }  // namespace immm::nodes

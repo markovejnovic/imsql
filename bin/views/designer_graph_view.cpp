@@ -1,7 +1,8 @@
+#include "immm/nodes/color_style.hpp"
+#include "models/dg/nodes.hpp"
 #include "util/fp.hpp"
 #include "util/interval.hpp"
 #include "models/dg/dg.hpp"
-#include "models/dg/transform_node.hpp"
 #include "immm/button.hpp"
 #include "immm/nodes/bidirectional_attribute.hpp"
 #include "immm/nodes/editor.hpp"
@@ -69,12 +70,94 @@ constexpr auto VertexToImNodeId(const dg::DesignGraphModel& dg,
   }
 }
 
-void editorNodes(immm::RenderCtx& ctx, const dg::DesignGraphModel& dg) {
+
+void editorEdges(immm::RenderCtx& ctx, dg::DesignGraphModel& dg) {
+  // Now we need to render the links between the nodes.
+  auto [ei, ei_end] = dg.EdgeRange();
+  for (; ei != ei_end; ++ei) {
+    const auto& edge = *ei;
+    auto src_vtx = dg.EdgeSource(edge);
+    auto tgt_vtx = dg.EdgeTarget(edge);
+
+    immm::nodes::Link link_node{ctx, dg.GetId(edge),
+                              AttrIdOutput(src_vtx).Id, AttrIdInput(tgt_vtx).Id};
+  }
+}
+
+void toolbar(immm::RenderCtx& ctx, dg::DesignGraphModel& model) {
+  // Render the toolbar with a button to add a new node.
+  // TODO(marko): Implement this, obviously.
+  {
+    auto [button, clicked] = immm::Button::CreateAndIsClicked(ctx, "Transformer Node");
+    if (clicked) {
+      model.AddTransformNode();
+    }
+  }
+}
+
+} // namespace
+
+void DesignerGraphView::operator()(immm::RenderCtx& ctx) {
+  {
+    toolbar(ctx, *model_);
+
+    {
+      immm::nodes::Editor editor{ctx};
+      renderEditorNodes(ctx);
+      editorEdges(ctx, *model_);
+    }
+
+    std::optional link_created = immm::nodes::Link::WhichLinkCreated();
+    if (link_created.has_value()) {
+      // We need to convert the IDs back 
+      model_->AddEdge(AttrIdToVertex(link_created->first), AttrIdToVertex(link_created->second));
+    }
+
+    std::optional link_destroyed = immm::nodes::Link::WhichLinkDestroyed();
+    if (link_destroyed.has_value()) {
+      printf("Link destroyed: %d\n", *link_destroyed);
+    }
+
+    hasPainted_ = true;
+  }
+}
+
+void DesignerGraphView::renderEditorNodes(immm::RenderCtx& ctx) {
+  auto& dg = *model_;
 
   // For each vertex in the graph, we need to render its node, and the vertices enclosed in the
   // node.
   for (const auto* node : dg.Nodes()) {
     const int node_id = dg.GetId(node);
+
+    const auto color_style = std::visit(
+      util::Overloads {
+        [&](const dg::DbNode&) {
+          return immm::nodes::MakeColorStyle(
+            ImNodesCol_TitleBar, themeModel_->Nodes.Database.TitleBar.Default,
+            ImNodesCol_TitleBarSelected, themeModel_->Nodes.Database.TitleBar.Selected,
+            ImNodesCol_TitleBarHovered, themeModel_->Nodes.Database.TitleBar.Hover
+          );
+        },
+        [&](const dg::OperatorNode&) {
+          return immm::nodes::MakeColorStyle(
+            ImNodesCol_TitleBar, themeModel_->Nodes.Operator.TitleBar.Default,
+            ImNodesCol_TitleBarSelected, themeModel_->Nodes.Operator.TitleBar.Selected,
+            ImNodesCol_TitleBarHovered, themeModel_->Nodes.Operator.TitleBar.Hover
+          );
+        },
+        [&](const dg::SpreadsheetNode&) {
+          // TODO(marko): Color the
+          return immm::nodes::MakeColorStyle(
+            ImNodesCol_TitleBar, themeModel_->Nodes.Spreadsheet.TitleBar.Default,
+            ImNodesCol_TitleBarSelected, themeModel_->Nodes.Spreadsheet.TitleBar.Selected,
+            ImNodesCol_TitleBarHovered, themeModel_->Nodes.Spreadsheet.TitleBar.Hover
+          );
+        },
+      },
+      node->Variant()
+    );
+
     immm::nodes::Node node_view{ctx, node_id};
 
     // TODO(marko): Implement loading node positions from the database.
@@ -108,52 +191,14 @@ void editorNodes(immm::RenderCtx& ctx, const dg::DesignGraphModel& dg) {
         VertexToImNodeId(dg, vtx)
       );
     }
-  }
-}
 
-void editorEdges(immm::RenderCtx& ctx, dg::DesignGraphModel& dg) {
-  // Now we need to render the links between the nodes.
-  auto [ei, ei_end] = dg.EdgeRange();
-  for (; ei != ei_end; ++ei) {
-    const auto& edge = *ei;
-    auto src_vtx = dg.EdgeSource(edge);
-    auto tgt_vtx = dg.EdgeTarget(edge);
-
-    immm::nodes::Link link_node{ctx, dg.GetId(edge),
-                              AttrIdOutput(src_vtx).Id, AttrIdInput(tgt_vtx).Id};
-  }
-}
-
-void toolbar(immm::RenderCtx& ctx, dg::DesignGraphModel& model) {
-  // Render the toolbar with a button to add a new node.
-  // TODO(marko): Implement this, obviously.
-  {
-    auto [button, clicked] = immm::Button::CreateAndIsClicked(ctx, "Transformer Node");
-    if (clicked) {
-      model.AddOperatorNode<dg::TransformNode>();
+    // Conditionally, we need to add a button to enable the user to add a new vertex to the node.
+    if (std::holds_alternative<dg::SpreadsheetNode>(node->Variant())) {
+      const auto [button, isClicked] = immm::Button::CreateAndIsClicked(ctx, "Add Vertex");
+      if (isClicked) {
+        dg.AddSpreadsheetColumn("unnamed column");
+      }
     }
-  }
-}
-
-} // namespace
-
-void DesignerGraphView::operator()(immm::RenderCtx& ctx) {
-  {
-    toolbar(ctx, *model_);
-
-    {
-      immm::nodes::Editor editor{ctx};
-      editorNodes(ctx, *model_);
-      editorEdges(ctx, *model_);
-    }
-
-    std::optional link_created = immm::nodes::Link::WhichLinkCreated();
-    if (link_created.has_value()) {
-      // We need to convert the IDs back 
-      model_->AddEdge(AttrIdToVertex(link_created->first), AttrIdToVertex(link_created->second));
-    }
-
-    hasPainted_ = true;
   }
 }
 

@@ -1,6 +1,7 @@
 #include "immm/platform/platform_macos.hpp"
 #include "models/db_model.hpp"
 #include "models/dg/dg.hpp"
+#include "models/theme_model.hpp"
 #include "pch.hpp"
 #include "immm/render_ctx.hpp"
 #include "views/db_view.hpp"
@@ -48,11 +49,10 @@ auto Main(int /*argc*/, char *const *const /*argv*/) -> int {
     "/Users/marko/Desktop/applier/backend/development_db.db"
   };
 
-  dg::DesignGraphModel design_graph{&db_model};
+  dg::DesignGraphModel dg_model{&db_model};
+  ThemeModel theme_model{};
 
-  design_graph.DumpDot(std::cout);
-
-  DbView db_view{db_model, design_graph};
+  DbView db_view{db_model, dg_model, theme_model};
 
   frame.StartRendering([&](const immm::RenderInfo& renderInfo) {
     db_view(render_ctx);

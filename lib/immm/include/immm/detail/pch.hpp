@@ -12,6 +12,7 @@
 #include <limits>
 #include <optional>
 #include <ostream>
+#include <ranges>
 #include <stdexcept>
 #include <string>
 #include <type_traits>
