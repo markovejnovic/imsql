@@ -2,6 +2,7 @@
 #define IMSQL_MODELS_DB_MODEL_HPP
 
 #include "SQLiteCpp/Database.h"
+#include "models/dg/nodes/values.hpp"
 #include "pch.hpp"
 
 namespace imsql {
@@ -14,26 +15,54 @@ class DbRelationshipEnforcement {
 
 /// @brief Represents a column in a database table.
 struct DbColumnModel {
-  explicit DbColumnModel(DbTableModel* table, std::string name, std::string type)
-      : table_(table), name_(std::move(name)), type_(std::move(type)) {}
+  explicit DbColumnModel(DbTableModel* table, std::string name, const std::string& type,
+                         bool nullable)
+      : table_(table),
+        name_(std::move(name)),
+        type_(ValueTypeTagFromString(type)),
+        nullable_(nullable) {}
 
   /// @brief Get the name of the column.
   [[nodiscard]] auto Name() const -> const std::string& { return name_; }
 
   /// @brief Get the type of the column.
-  [[nodiscard]] auto Type() const -> const std::string& { return type_; }
+  [[nodiscard]] auto Type() const -> dg::ValueTypeTag { return type_; }
+
+  [[nodiscard]] auto Nullable() const noexcept -> bool {
+    return nullable_;
+  }
 
   /// @brief Get the rows of this column.
-  template <class ValueType>
-  [[nodiscard]] auto GetRows() const -> std::vector<ValueType>;
+  /// @todo(marko) The return type is definitely a hack -- we're coupling dg::* with the
+  ///              db_model.hpp. This should be separated out into a more generic.
+  /// @todo(marko): This whole class should be templatized to support different value types. As-is,
+  ///               it is naive that dg::Value is returned instead of whatever Type() is.
+  [[nodiscard]] auto GetRows() const -> std::vector<dg::Value>;
 
-  template <class ValueType>
-  [[nodiscard]] auto GetValue(std::size_t key) const -> ValueType;
+  /// @todo(marko): This API is very fragile as it requires a primary key. There architectural
+  ///               problems in my current design that I need to address before that can be
+  ///               addressed.
+  [[nodiscard]] auto GetValue(std::size_t primaryKey) const -> std::optional<dg::Value>;
 
 private:
   std::string name_;
-  std::string type_;
   DbTableModel* table_;
+  dg::ValueTypeTag type_;
+  bool nullable_ = false;
+
+  static auto ValueTypeTagFromString(const std::string& type) -> dg::ValueTypeTag {
+    // @todo(marko): This whole implementation is a hack. We should really be using SQLite's type
+    // affinities to characterize the type of the column.
+    if (type == "INTEGER" || type == "BOOLEAN") {
+      return dg::ValueTypeTag::Int64;
+    }
+    if (type == "TEXT" || type == "VARCHAR" || type == "CHAR"
+      || type == "CLOB" || type == "BLOB" || type == "JSON") {
+      return dg::ValueTypeTag::String;
+    }
+
+    throw std::runtime_error(std::format("Unsupported column type: '{}'", type));
+  }
 };
 
 /// @brief Represents a table in a database, containing multiple columns.
@@ -57,9 +86,6 @@ public:
 
   [[nodiscard]] auto ColumnByName(std::string_view name) const -> const DbColumnModel&;
   [[nodiscard]] auto ColumnByName(std::string_view name) -> DbColumnModel&;
-
-  template <class ValueType>
-  [[nodiscard]] auto GetValue(std::string_view column_name, std::size_t key) const -> ValueType;
 
 private:
   std::string name_;

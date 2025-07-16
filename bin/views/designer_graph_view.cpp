@@ -1,5 +1,6 @@
 #include "immm/nodes/color_style.hpp"
-#include "models/dg/nodes.hpp"
+#include "models/dg/nodes/db_table_node.hpp"
+#include "models/dg/nodes/transformer_node.hpp"
 #include "util/fp.hpp"
 #include "util/interval.hpp"
 #include "models/dg/dg.hpp"
@@ -24,7 +25,7 @@ namespace {
 
 struct AttrIdInput {
   int Id;
-  explicit AttrIdInput(const dg::DesignGraphModel::VertexType& vtx) : Id(([&]() {
+  explicit AttrIdInput(const dg::VertexType& vtx) : Id(([&]() {
     const auto vtx_id = gsl::narrow<unsigned int>(vtx);
     const auto signed_vtx_id = gsl::narrow<int>(vtx);
     return signed_vtx_id;
@@ -33,7 +34,7 @@ struct AttrIdInput {
 
 struct AttrIdOutput {
   int Id;
-  explicit AttrIdOutput(const dg::DesignGraphModel::VertexType& vtx) : Id(([&]() {
+  explicit AttrIdOutput(const dg::VertexType& vtx) : Id(([&]() {
     const auto vtx_id = gsl::narrow<unsigned int>(vtx);
     const auto signed_vtx_id = gsl::narrow<int>(vtx);
     return -signed_vtx_id;
@@ -44,27 +45,27 @@ struct AttrIdBidirectional {
   AttrIdOutput IdOut;
 
   explicit AttrIdBidirectional(
-    const dg::DesignGraphModel::VertexType& vtx
+    const dg::VertexType& vtx
   ) : IdIn(vtx), IdOut(vtx) {}
 };
 
 using AttrId = std::variant<AttrIdInput, AttrIdOutput, AttrIdBidirectional>;
 
 /// @brief Map an attribute ID to a vertex ID.
-auto AttrIdToVertex(int attrId) -> dg::DesignGraphModel::VertexType {
+auto AttrIdToVertex(int attrId) -> dg::VertexType {
   return std::abs(attrId);
 }
 
 constexpr auto VertexToImNodeId(const dg::DesignGraphModel& dg,
-                                const dg::DesignGraphModel::VertexType& vtx) -> AttrId {
+                                const dg::VertexType& vtx) -> AttrId {
   const auto vtx_direction = dg.GetVertexDirection(vtx);
 
   switch (vtx_direction) {
-    case dg::DesignGraphModel::VertexDirection::Input:
+    case dg::VertexDirection::Input:
       return AttrIdInput{ vtx };
-    case dg::DesignGraphModel::VertexDirection::Output:
+    case dg::VertexDirection::Output:
       return AttrIdOutput{ vtx };
-    case dg::DesignGraphModel::VertexDirection::Bidirectional: {
+    case dg::VertexDirection::Bidirectional: {
       return AttrIdBidirectional{ vtx };
     }
   }
@@ -80,7 +81,7 @@ void editorEdges(immm::RenderCtx& ctx, dg::DesignGraphModel& dg) {
     auto tgt_vtx = dg.EdgeTarget(edge);
 
     immm::nodes::Link link_node{ctx, dg.GetId(edge),
-                              AttrIdOutput(src_vtx).Id, AttrIdInput(tgt_vtx).Id};
+                                AttrIdOutput(src_vtx).Id, AttrIdInput(tgt_vtx).Id};
   }
 }
 
@@ -113,11 +114,6 @@ void DesignerGraphView::operator()(immm::RenderCtx& ctx) {
       model_->AddEdge(AttrIdToVertex(link_created->first), AttrIdToVertex(link_created->second));
     }
 
-    std::optional link_destroyed = immm::nodes::Link::WhichLinkDestroyed();
-    if (link_destroyed.has_value()) {
-      printf("Link destroyed: %d\n", *link_destroyed);
-    }
-
     hasPainted_ = true;
   }
 }
@@ -130,33 +126,28 @@ void DesignerGraphView::renderEditorNodes(immm::RenderCtx& ctx) {
   for (const auto* node : dg.Nodes()) {
     const int node_id = dg.GetId(node);
 
-    const auto color_style = std::visit(
-      util::Overloads {
-        [&](const dg::DbNode&) {
-          return immm::nodes::MakeColorStyle(
-            ImNodesCol_TitleBar, themeModel_->Nodes.Database.TitleBar.Default,
-            ImNodesCol_TitleBarSelected, themeModel_->Nodes.Database.TitleBar.Selected,
-            ImNodesCol_TitleBarHovered, themeModel_->Nodes.Database.TitleBar.Hover
-          );
-        },
-        [&](const dg::OperatorNode&) {
-          return immm::nodes::MakeColorStyle(
-            ImNodesCol_TitleBar, themeModel_->Nodes.Operator.TitleBar.Default,
-            ImNodesCol_TitleBarSelected, themeModel_->Nodes.Operator.TitleBar.Selected,
-            ImNodesCol_TitleBarHovered, themeModel_->Nodes.Operator.TitleBar.Hover
-          );
-        },
-        [&](const dg::SpreadsheetNode&) {
-          // TODO(marko): Color the
-          return immm::nodes::MakeColorStyle(
-            ImNodesCol_TitleBar, themeModel_->Nodes.Spreadsheet.TitleBar.Default,
-            ImNodesCol_TitleBarSelected, themeModel_->Nodes.Spreadsheet.TitleBar.Selected,
-            ImNodesCol_TitleBarHovered, themeModel_->Nodes.Spreadsheet.TitleBar.Hover
-          );
-        },
-      },
-      node->Variant()
-    );
+    const auto color_style = ([&]() {
+      if (dynamic_cast<const dg::DbTableNode*>(node)) {
+        return immm::nodes::MakeColorStyle(
+          ImNodesCol_TitleBar, themeModel_->Nodes.Database.TitleBar.Default,
+          ImNodesCol_TitleBarSelected, themeModel_->Nodes.Database.TitleBar.Selected,
+          ImNodesCol_TitleBarHovered, themeModel_->Nodes.Database.TitleBar.Hover
+        );
+      }
+      if (dynamic_cast<const dg::TransformNode*>(node)) {
+        return immm::nodes::MakeColorStyle(
+          ImNodesCol_TitleBar, themeModel_->Nodes.Operator.TitleBar.Default,
+          ImNodesCol_TitleBarSelected, themeModel_->Nodes.Operator.TitleBar.Selected,
+          ImNodesCol_TitleBarHovered, themeModel_->Nodes.Operator.TitleBar.Hover
+        );
+      }
+
+      return immm::nodes::MakeColorStyle(
+        ImNodesCol_TitleBar, themeModel_->Nodes.Spreadsheet.TitleBar.Default,
+        ImNodesCol_TitleBarSelected, themeModel_->Nodes.Spreadsheet.TitleBar.Selected,
+        ImNodesCol_TitleBarHovered, themeModel_->Nodes.Spreadsheet.TitleBar.Hover
+      );
+    })();
 
     immm::nodes::Node node_view{ctx, node_id};
 
@@ -193,7 +184,10 @@ void DesignerGraphView::renderEditorNodes(immm::RenderCtx& ctx) {
     }
 
     // Conditionally, we need to add a button to enable the user to add a new vertex to the node.
-    if (std::holds_alternative<dg::SpreadsheetNode>(node->Variant())) {
+    if (dynamic_cast<const dg::SpreadsheetNode*>(node) != nullptr) {
+      // Only add the button if the node is a SpreadsheetNode.
+      // This is a hack to allow adding new columns to the spreadsheet.
+      // TODO(marko): Make this more generic and allow adding new vertices to any node.
       const auto [button, isClicked] = immm::Button::CreateAndIsClicked(ctx, "Add Vertex");
       if (isClicked) {
         dg.AddSpreadsheetColumn("unnamed column");

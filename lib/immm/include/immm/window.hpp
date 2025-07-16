@@ -19,6 +19,13 @@ class Window : public Component<"Window"> {
   Window(Window&&) = delete;
   auto operator=(Window&&) -> Window& = delete;
 
+  static auto CreateCoveringWindow(RenderCtx& renderCtx, const char* title) -> Window;
+
+  static constexpr auto CreateCoveringWindow(RenderCtx& renderCtx,
+                                             const std::string& title) -> Window {
+    return CreateCoveringWindow(renderCtx, title.c_str());
+  }
+
  private:
   bool isRendering_;
 };

@@ -8,7 +8,7 @@ namespace imsql {
 void DbView::operator()(immm::RenderCtx& ctx) {
   const auto* title = dbModel_->Path().c_str();
 
-  immm::Window window{ctx, title};
+  immm::Window window = immm::Window::CreateCoveringWindow(ctx, title);
   if (!window.Rendering()) {
     return;
   }

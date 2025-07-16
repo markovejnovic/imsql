@@ -2,91 +2,39 @@
 #define IMSQL_MODELS_DG_DESIGN_GRAPH_MODEL_HPP
 
 #include "models/db_model.hpp"
-#include "models/dg/nodes.hpp"
+#include "models/dg/nodes/transformer_node.hpp"
+#include "models/dg/nodes/base_node.hpp"
+#include "models/dg/nodes/spreadsheet_node.hpp"
+#include "models/dg/graph_types.hpp"
 #include "pch.hpp"
+#include <memory>
 
 namespace imsql::dg {
-
-enum class IOMode : uint8_t {
-  Input = 0,
-  Output = 1,
-};
-
-struct VertexDescriptorStructure {
-  IOMode Mode : 1;
-  unsigned int Id : sizeof(int) - 1;
-};
-
-static_assert(sizeof(VertexDescriptorStructure) == sizeof(int),
-              "VertexDescriptor must be the same size as int.");
-
-union VertexDescriptor {
-  int AsInt;
-  VertexDescriptorStructure AsStruct;
-};
-
-static_assert(sizeof(VertexDescriptor) == sizeof(int),
-              "VertexDescriptor must be the same size as int.");
 
 /// @brief Represents the design graph, ie. the graph you see in the "Designer" tab of the GUI.
 class DesignGraphModel {
 public:
   explicit DesignGraphModel(DbModel* dbModel);
 
-  enum class VertexDirection : uint8_t {
-    Input,
-    Output,
-    Bidirectional,
-  };
-
-  /// @note Each vertex has this metadata attached to it.
-  struct VertexProperty {
-    std::string Name;
-    Node* Node;
-    VertexDirection Direction;
-  };
-
-  /// @note Each edge has this metadata attached to it.
-  struct EdgeProperty {
-    int Id;
-  };
-
 private:
-  boost::adjacency_list<boost::vecS, boost::vecS, boost::bidirectionalS,
-                        VertexProperty, EdgeProperty> graph_;
-public:
-  using VertexType = boost::graph_traits<decltype(graph_)>::vertex_descriptor;
-  static_assert(std::is_same_v<VertexType, unsigned long>,
-                "VertexType must be the same as VertexDescriptor.");
-  using EdgeType = boost::graph_traits<decltype(graph_)>::edge_descriptor;
+  GraphType graph_;
 
-  /// @brief Information associated with each node in the design graph.
-  struct NodeProperty {
-    std::vector<VertexType> Vertices;
-    int NodeId;
-  };
-
-private:
   /// @brief Manages the lifetime of nodes in the design graph.
   /// @note It is unsafe to store Node's in the vector itself. It may resize which will invalidate
   ///       the pointers to the nodes. Note that nodeProperties_, for one, holds pointers to these
   /// @todo Profile std::vector of std::unique_ptr<Node> vs. std::queue of Node.
-  std::vector<std::unique_ptr<Node>> nodesPool_;
+  std::vector<std::unique_ptr<BaseNode>> nodesPool_;
 
   /// @brief Maps nodes to their properties.
-  boost::unordered_map<const Node*, NodeProperty> nodeProperties_;
-  boost::unordered_map<int, VertexType> vertexIds_;
+  boost::unordered_map<const BaseNode*, NodeProperty> nodeProperties_;
 
   // @note Order matters here. We need nextObjectId_ to be the first member so that it gets
   // initialized to zero before spreadsheetNode_ is initialized.
   int nextObjectId_ = 0;
   DbModel *dbModel_;
-  Node* spreadsheetNode_;
+  SpreadsheetNode* spreadsheetNode_;
 public:
-  /// @brief Output the design graph in DOT format, useful for debugging.
-  void DumpDot(std::ostream& out) const;
-
-  [[nodiscard]] constexpr auto GetSpreadsheetNode() noexcept -> Node* {
+  [[nodiscard]] constexpr auto GetSpreadsheetNode() noexcept -> SpreadsheetNode* {
     return spreadsheetNode_;
   }
 
@@ -95,7 +43,7 @@ public:
       | std::views::transform([](const auto& node) { return node.get(); });
   }
 
-  [[nodiscard]] constexpr auto Vertices(const Node* node) const noexcept {
+  [[nodiscard]] constexpr auto Vertices(const BaseNode* node) const noexcept {
     return nodeProperties_.at(node).Vertices;
   }
 
@@ -103,46 +51,12 @@ public:
     return graph_[vtx].Direction;
   }
 
-  [[nodiscard]] constexpr auto VertexName(VertexType vtx) const noexcept -> const std::string& {
-    return graph_[vtx].Name;
+  [[nodiscard]] constexpr auto VertexName(VertexType vtx) const noexcept -> std::string_view {
+    return graph_[vtx].Vertex->Name();
   }
-
-  [[nodiscard]] constexpr auto GetRowIds() const -> std::vector<std::size_t> {
-    BOOST_CONTRACT_ASSERT(spreadsheetNode_ != nullptr);
-
-    const auto& spreadsheet_property = nodeProperties_.at(spreadsheetNode_);
-    // Let's find the id vertex in the spreadsheet node.
-    // @todo Perhaps we should avoid searching for the id vertex every time?
-    const VertexType id_vertex = *std::ranges::find_if(
-      spreadsheet_property.Vertices,
-      [this](const VertexType& vtx) {
-        return graph_[vtx].Name == "id";
-      }
-    );
-
-    // Now we find the edges facing into our id vertex.
-    const auto inp_edges = boost::in_edges(id_vertex, graph_);
-    if (inp_edges.first == inp_edges.second) {
-      return {}; // No edges found, return empty vector.
-    }
-
-    // We do not support multiple edges to the id vertex.
-    BOOST_CONTRACT_ASSERT(std::distance(inp_edges.first, inp_edges.second) <= 1);
-
-    // Now, let us find the vertex pointing to the id vertex.
-    const auto source_vertex = boost::source(*inp_edges.first, graph_);
-    const auto& source_vtx_property = graph_[source_vertex];
-    // @todo(marko): This cast is a little bit of a hack.
-    const auto& source_node = graph_[source_vertex].Node->As<DbTableNode>();
-
-    return source_node.ValuesForColumn<std::size_t>(source_vtx_property.Name);
-  }
-
-  /// @brief For the given row ID, retrieve all the column values in the spreadsheet.
-  [[nodiscard]] auto GetSpreadsheetValues(std::size_t rowId) const -> std::vector<std::string>;
 
   [[nodiscard]] constexpr auto VertexNode(VertexType vtx) const noexcept {
-    return graph_[vtx].Node;
+    return graph_[vtx].Vertex.get();
   }
 
   [[nodiscard]] constexpr auto EdgeRange() const noexcept {
@@ -158,61 +72,99 @@ public:
   }
 
   [[maybe_unused]] constexpr auto AddSpreadsheetColumn(std::string_view column_name) -> VertexType {
-    return MakeVertex(std::string(column_name), spreadsheetNode_, VertexDirection::Input);
+    return MakeVertex(std::make_shared<SpreadsheetVertex>(this, std::string(column_name)),
+                      VertexDirection::Input, spreadsheetNode_);
   }
 
-  /// @brief Retrieve the unique identifier for the given object.
-  /// @{
-  [[nodiscard]] auto GetId(const Node* node) const noexcept -> int;
-  [[nodiscard]] auto GetId(const EdgeType& edge) const noexcept -> int;
-  /// @}
+  [[nodiscard]] auto GetRowIds() const noexcept -> std::vector<std::size_t>;
 
-  void AddTransformNode() {
-    auto* node_ptr = AddEmptyNode(TransformNode{});
-    node_ptr->As<TransformNode>().SetVertices(
-      MakeVertex("key", node_ptr, VertexDirection::Input),
-      MakeVertex("value", node_ptr, VertexDirection::Input),
-      MakeVertex("output", node_ptr, VertexDirection::Output)
-    );
+  [[maybe_unused]] constexpr auto AddTransformNode() -> TransformNode* {
+    TransformNode* node_ptr = AddEmptyNode(TransformNode{this});
+    auto keyip = MakeVertex(std::make_shared<TransformInputKeyVertex>(this, node_ptr),
+                            VertexDirection::Input, node_ptr);
+    auto valip = MakeVertex(std::make_shared<TransformInputValueVertex>(this, node_ptr),
+                            VertexDirection::Input, node_ptr);
+    auto valout = MakeVertex(std::make_shared<TransformOutputVertex>(this, node_ptr),
+                             VertexDirection::Output, node_ptr);
+    // @todo(marko): This dynamic_cast is a 1AM hack.
+    node_ptr->SetInputKeyVertex(
+      dynamic_cast<TransformInputKeyVertex*>(graph_[keyip].Vertex.get()));
+    node_ptr->SetInputValueVertex(
+      dynamic_cast<TransformInputValueVertex*>(graph_[valip].Vertex.get()));
+    node_ptr->SetOutputVertex(
+      dynamic_cast<TransformOutputVertex*>(graph_[valout].Vertex.get()));
+    return node_ptr;
   }
 
   constexpr void AddEdge(VertexType source, VertexType target) {
     MakeEdge(source, target);
   }
 
-private:
-  /// @brief Register a node with the system which has no vertices associated with it.
-  template <class T>
-  constexpr auto AddEmptyNode(T&& node) -> Node* {
-    auto& new_node = nodesPool_.emplace_back(std::make_unique<Node>(std::forward<T>(node)));
-    nodeProperties_.emplace(new_node.get(), NodeProperty{
-      .Vertices = {},
-      .NodeId = nextObjectId_++,
-    });
-
-    return new_node.get();
+  [[nodiscard]] constexpr auto Vertex(const VertexType& vtx) const -> const BaseVertex* {
+    return graph_[vtx].Vertex.get();
   }
 
-  auto AddSpreadsheetNode() -> Node* {
-    auto* node_ptr = AddEmptyNode(SpreadsheetNode{});
-    MakeVertex("id", node_ptr, VertexDirection::Input);
-    return node_ptr;
+  [[nodiscard]] constexpr auto Vertex(const VertexType& vtx) -> BaseVertex* {
+    return graph_[vtx].Vertex.get();
   }
 
-  [[maybe_unused]] constexpr auto MakeVertex(std::string name, Node* node,
-                                             VertexDirection direction) -> VertexType {
-    const auto vtx_id = nextObjectId_++;
+  [[nodiscard]] constexpr auto InputVertex(const VertexType& vtx) const -> const BaseVertex* {
+    auto in_edges_range = boost::in_edges(vtx, graph_);
+    if (in_edges_range.first == in_edges_range.second) {
+      return nullptr; // no predecessor
+    }
 
+    BOOST_CONTRACT_ASSERT(std::distance(in_edges_range.first, in_edges_range.second) == 1);
+
+    const auto source_vtx = boost::source(*in_edges_range.first, graph_);
+    return graph_[source_vtx].Vertex.get();
+  }
+
+  [[nodiscard]] constexpr auto GetId(const EdgeType& edge) const noexcept -> int {
+    return graph_[edge].Id;
+  }
+
+  [[nodiscard]] constexpr auto GetId(const BaseNode* node) const noexcept -> int {
+    return nodeProperties_.at(node).NodeId;
+  }
+
+  [[maybe_unused]] constexpr auto MakeVertex(
+    const std::shared_ptr<BaseVertex>& vertex,
+    VertexDirection direction,
+    BaseNode* node
+  ) -> VertexType {
     auto vtx = boost::add_vertex(VertexProperty{
-      .Name = std::move(name),
-      .Node = node,
+      .Vertex = vertex,
       .Direction = direction,
     }, graph_);
 
     nodeProperties_.at(node).Vertices.push_back(vtx);
-    vertexIds_.emplace(vtx_id, vtx);
+
+    graph_[vtx].Vertex->SetVertexId(vtx);
 
     return vtx;
+  }
+
+private:
+  /// @brief Register a node with the system which has no vertices associated with it.
+  template <class T>
+  constexpr auto AddEmptyNode(T&& node) -> T* {
+    auto node_smart =  std::make_unique<T>(std::forward<T>(node));
+    T* node_ptr = node_smart.get();
+
+    nodesPool_.emplace_back(std::move(node_smart));
+    nodeProperties_.emplace(node_ptr, NodeProperty{
+      .Vertices = {},
+      .NodeId = nextObjectId_++,
+    });
+
+    return node_ptr;
+  }
+
+  auto AddSpreadsheetNode() -> SpreadsheetNode* {
+    auto* node_ptr = AddEmptyNode(SpreadsheetNode{this});
+    MakeVertex(std::make_shared<SpreadsheetVertex>(this, "id"), VertexDirection::Input, node_ptr);
+    return node_ptr;
   }
 
   [[maybe_unused]] constexpr auto MakeEdge(VertexType source, VertexType target) -> EdgeType {

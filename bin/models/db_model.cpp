@@ -1,6 +1,9 @@
 #include "db_model.hpp"
+#include "models/dg/nodes/values.hpp"
+#include <iterator>
 #include <regex>
 #include <string_view>
+#include <utility>
 
 namespace imsql {
 
@@ -22,46 +25,71 @@ auto FindByName(Range&& range, std::string_view name, std::string_view container
 
 } // namespace
 
-template <>
-auto DbColumnModel::GetRows<std::size_t>() const -> std::vector<std::size_t> {
+auto DbColumnModel::GetRows() const -> std::vector<dg::Value> {
   SQLite::Statement query(table_->db_->db_,
                           std::format("SELECT {} FROM {};", Name(), table_->Name()));
 
-  std::vector<std::size_t> results;
+  std::vector<dg::Value> results;
   while (query.executeStep()) {
-    const auto result = query.getColumn(0).getUInt();
-    results.push_back(result);
+    const auto result = query.getColumn(0);
+    if (result.isNull()) {
+      // @todo(marko): I would like a better assert than BOOST_CONTRACT_ASSERT here, but the former
+      // doesn't allow for error messages which are helpful.
+      if (!Nullable()) {
+        throw std::runtime_error(std::format(
+          "Column '{}' in table '{}' is not nullable, but a NULL value was found.",
+          Name(), table_->Name()));
+      }
+      results.emplace_back(dg::NullValue{});
+      continue;
+    }
+
+    switch (Type()) {
+      case dg::ValueTypeTag::Int64:
+        results.emplace_back(dg::Int64Value(result));
+        continue;
+      case dg::ValueTypeTag::String:
+        results.emplace_back(dg::StringValue(result.getString()));
+        continue;
+      // @todo(marko): This is quite hacky. Null shouldn't be treated as its own type here.
+      case dg::ValueTypeTag::Null:
+        std::unreachable();
+        continue;
+    }
   }
 
   return results;
 }
 
-template <>
-auto DbColumnModel::GetRows<std::string>() const -> std::vector<std::string> {
-  SQLite::Statement query(table_->db_->db_,
-                          std::format("SELECT {} FROM {};", Name(), table_->Name()));
-
-  std::vector<std::string> results;
-  while (query.executeStep()) {
-    const auto result = query.getColumn(0).getString();
-    results.push_back(result);
-  }
-
-  return results;
-}
-
-template <>
-auto DbColumnModel::GetValue<std::string>(std::size_t key) const -> std::string {
+auto DbColumnModel::GetValue(std::size_t primaryKey) const -> std::optional<dg::Value> {
   SQLite::Statement query(table_->db_->db_,
                           std::format("SELECT {} FROM {} WHERE id = {};",
-                                      Name(), table_->Name(), key));
+                                      Name(), table_->Name(), primaryKey));
 
   if (query.executeStep()) {
-    return query.getColumn(0).getString();
+    const auto result = query.getColumn(0);
+    if (result.isNull()) {
+      // @todo(marko): I would like a better assert than BOOST_CONTRACT_ASSERT here, but the former
+      // doesn't allow for error messages which are helpful.
+      if (!Nullable()) {
+        throw std::runtime_error(std::format(
+          "Column '{}' in table '{}' is not nullable, but a NULL value was found.",
+          Name(), table_->Name()));
+      }
+      return dg::NullValue{};
+    }
+
+    switch (Type()) {
+      case dg::ValueTypeTag::Int64:
+        return dg::Int64Value(result);
+      case dg::ValueTypeTag::String:
+        return dg::StringValue(result.getString());
+      case dg::ValueTypeTag::Null:
+        std::unreachable();
+    }
   }
 
-  throw std::runtime_error(std::format("No value found for column '{}' with key '{}'",
-                                       Name(), key));
+  return std::nullopt;
 }
 
 auto DbTableModel::ColumnByName(const std::string_view name) const -> const DbColumnModel& {
@@ -80,20 +108,6 @@ auto DbModel::TableByName(const std::string_view name) -> DbTableModel& {
   return *FindByName(tables_, name, Path());
 }
 
-template <>
-auto DbTableModel::GetValue<std::string>(std::string_view column_name,
-                                         std::size_t key) const -> std::string {
-  SQLite::Statement query(db_->db_, std::format("SELECT {} FROM {} WHERE id = {};",
-                                                column_name, Name(), key));
-  
-  if (query.executeStep()) {
-    return query.getColumn(0).getString();
-  }
-
-  throw std::runtime_error(std::format("No value found for column '{}' with key '{}'",
-                                       column_name, key));
-}
-
 void DbModel::LoadLocalState() {
   const auto load_tables = [&]() {
     SQLite::Statement query(db_, "SELECT name FROM sqlite_master WHERE type='table';");
@@ -106,8 +120,9 @@ void DbModel::LoadLocalState() {
       while (columnQuery.executeStep()) {
         const auto columnName = columnQuery.getColumn(1).getString();
         const auto columnType = columnQuery.getColumn(2).getString();
+        const bool notNullable = columnQuery.getColumn(3).getInt() != 0;
         tbl_model->Columns().emplace_back(
-          std::make_unique<DbColumnModel>(tbl_model, columnName, columnType));
+          std::make_unique<DbColumnModel>(tbl_model, columnName, columnType, !notNullable));
       }
 
     }
